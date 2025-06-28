@@ -5,6 +5,7 @@
 
 package com.freefish.rosmontislib.client.particle.advance;
 
+import com.freefish.rosmontislib.RosmontisLib;
 import com.freefish.rosmontislib.client.particle.advance.base.IParticle;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -15,6 +16,7 @@ import net.minecraft.client.renderer.GameRenderer;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveTask;
@@ -43,7 +45,8 @@ public class RLParticleQueueRenderType extends RLParticleRenderType {
     private static final BufferBuilderPool BUILDER_POOL = new BufferBuilderPool();
 
     // runtime
-    protected final Map<RLParticleRenderType, Queue<IParticle>> particles = new HashMap<>();
+    protected final Map<RLParticleRenderType, Queue<IParticle>> particles =
+        RosmontisLib.isModLoaded("asyncparticles") ? new ConcurrentHashMap<>() : new HashMap<>();
     private Camera camera;
     private float pPartialTicks;
     private boolean isRenderingQueue;
@@ -93,7 +96,13 @@ public class RLParticleQueueRenderType extends RLParticleRenderType {
     }
 
     public void pipeQueue(@Nonnull RLParticleRenderType type, @Nonnull Collection<IParticle> queue, Camera camera, float pPartialTicks) {
-        particles.computeIfAbsent(type, t -> new ArrayDeque<>()).addAll(queue);
+        particles.compute(type, (k, v) -> {
+            if (v == null) {
+                v = new ArrayDeque<>();
+            }
+            v.addAll(queue);
+            return v;
+        });
         if (this.camera == null) {
             this.camera = camera;
             this.pPartialTicks = pPartialTicks;
